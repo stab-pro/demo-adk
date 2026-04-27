@@ -15,44 +15,23 @@ load_dotenv()  # reads GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, etc. fro
 # ---------------------------------------------------------------------------
 # Langfuse — auto-instrumentation via OpenTelemetry + openinference
 # Must be set up before any ADK code is imported/executed.
+# langfuse v3 auto-configures the OTel pipeline from LANGFUSE_PUBLIC_KEY,
+# LANGFUSE_SECRET_KEY, and LANGFUSE_BASE_URL environment variables.
 # ---------------------------------------------------------------------------
-import base64 as _base64
-
-from opentelemetry import trace as _otel_trace
-from opentelemetry.sdk.trace import TracerProvider as _TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor as _BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as _OTLPSpanExporter
-from langfuse import Langfuse as _Langfuse
+from langfuse import get_client as _get_langfuse_client
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor as _GoogleADKInstrumentor
 
-_lf_host = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
-_lf_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-_lf_secret_key = os.getenv("LANGFUSE_SECRET_KEY", "")
-
-# Langfuse OTel endpoint — Basic-auth header required
-_lf_auth = _base64.b64encode(f"{_lf_public_key}:{_lf_secret_key}".encode()).decode()
-_otlp_exporter = _OTLPSpanExporter(
-    endpoint=f"{_lf_host}/api/public/otel/v1/traces",
-    headers={"Authorization": f"Basic {_lf_auth}"},
-)
-_tracer_provider = _TracerProvider()
-_tracer_provider.add_span_processor(_BatchSpanProcessor(_otlp_exporter))
-_otel_trace.set_tracer_provider(_tracer_provider)
-
-_langfuse = _Langfuse()
+_langfuse = _get_langfuse_client()
 try:
     _langfuse.auth_check()
-    logging.getLogger(__name__).info(
-        "Langfuse connected — traces will be sent to %s",
-        _lf_host,
-    )
+    logging.getLogger(__name__).info("Langfuse connected — traces will be forwarded")
 except Exception as _lf_err:
     logging.getLogger(__name__).warning(
-        "Langfuse auth check failed (%s) — check LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST",
+        "Langfuse auth check failed (%s) — check LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL",
         _lf_err,
     )
 
-_GoogleADKInstrumentor().instrument(tracer_provider=_tracer_provider)
+_GoogleADKInstrumentor().instrument()
 
 # ---------------------------------------------------------------------------
 # Credential bootstrap — inject VS Code cached credentials before ADK loads

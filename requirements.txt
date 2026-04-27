@@ -1,4 +1,4 @@
 google-adk>=1.0.0
 uvicorn[standard]>=0.29.0
-langfuse>=2.0.0
+langfuse>=3.0.0
 openinference-instrumentation-google-adk>=0.1.0
